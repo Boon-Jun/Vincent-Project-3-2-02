@@ -365,10 +365,7 @@ void loop(){
     sendBadChecksum();
   }
 
-  if (dir == STOP){
-    moveStop();
-  }
-  else if (leftTicks > requiredTicks){
+  if (leftTicks > requiredTicks){
     moveStop();
   }   
 }
