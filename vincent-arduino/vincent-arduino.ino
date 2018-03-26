@@ -178,7 +178,7 @@ void setup() {
   //setup left wheel
   TCNT2 = 0;
   OCR2A = 128;
-  OCR2B = 128;//set default of 50% duty cycle
+  OCR2B = 128; //set default of 50% duty cycle
   TIMSK2 |= 0b110;// Activates OCR2A and OCR2B compares match interrupt.
 
   //setup wheel encoders and set pull up resistors
