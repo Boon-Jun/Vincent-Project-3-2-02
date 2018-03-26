@@ -2,8 +2,10 @@
 
 #include "packet.h"
 #include "constants.h"
+#include <math.h>
 
-typedef enum{
+
+typedef enum {
   STOP = 0,
   FORWARD = 1,
   BACKWARD = 2,
@@ -15,7 +17,7 @@ volatile TDirection dir = STOP;
 volatile unsigned long leftTicks = 0, rightTicks = 0, requiredTicks = 0;
 float speed = 0.0;
 
-TResult readPacket(TPacket *packet){
+TResult readPacket(TPacket *packet) {
   // Reads in data from the serial port and
   // deserializes it.Returns deserialized
   // data in "packet".
@@ -32,7 +34,7 @@ TResult readPacket(TPacket *packet){
 
 }
 
-void sendStatus(){
+void sendStatus() {
   // Implement code to send back a packet containing key
   // information like leftTicks, rightTicks, leftRevs, rightRevs
   // forwardDist and reverseDist
@@ -47,7 +49,7 @@ void sendStatus(){
   sendResponse(&statusPacket);
 }
 
-void sendMessage(const char *message){
+void sendMessage(const char *message) {
   // Sends text messages back to the Pi. Useful
   // for debugging.
 
@@ -57,7 +59,7 @@ void sendMessage(const char *message){
   sendResponse(&messagePacket);
 }
 
-void sendBadPacket(){
+void sendBadPacket() {
   // Tell the Pi that it sent us a packet with a bad
   // magic number.
 
@@ -67,7 +69,7 @@ void sendBadPacket(){
   sendResponse(&badPacket);
 }
 
-void sendBadChecksum(){
+void sendBadChecksum() {
   // Tell the Pi that it sent us a packet with a bad
   // checksum.
 
@@ -77,7 +79,7 @@ void sendBadChecksum(){
   sendResponse(&badChecksum);
 }
 
-void sendBadCommand(){
+void sendBadCommand() {
   // Tell the Pi that we don't understand its
   // command sent to us.
 
@@ -87,21 +89,21 @@ void sendBadCommand(){
   sendResponse(&badCommand);
 }
 
-void sendBadResponse(){
+void sendBadResponse() {
   TPacket badResponse;
   badResponse.packetType = PACKET_TYPE_ERROR;
   badResponse.command = RESP_BAD_RESPONSE;
   sendResponse(&badResponse);
 }
 
-void sendOK(){
+void sendOK() {
   TPacket okPacket;
   okPacket.packetType = PACKET_TYPE_RESPONSE;
   okPacket.command = RESP_OK;
   sendResponse(&okPacket);
 }
 
-void sendResponse(TPacket *packet){
+void sendResponse(TPacket *packet) {
   // Takes a packet, serializes it then sends it out
   // over the serial port.
   char buffer[PACKET_SIZE];
@@ -111,10 +113,16 @@ void sendResponse(TPacket *packet){
   writeSerial(buffer, len);
 }
 
+void setupSerial()
+{
+  // To replace later with bare-metal.
+  Serial.begin(9600);
+}
+
 // Read the serial port. Returns the read character in
 // ch if available. Also returns TRUE if ch is valid.
 // This will be replaced later with bare-metal code.
-int readSerial(char *buffer){
+int readSerial(char *buffer) {
   int count = 0;
 
   while (Serial.available())
@@ -125,12 +133,12 @@ int readSerial(char *buffer){
 
 // Write to the serial port. Replaced later with
 // bare-metal code
-void writeSerial(const char *buffer, int len){
+void writeSerial(const char *buffer, int len) {
   Serial.write(buffer, len);
 }
 
 //KIV: can be placed in the RPi
-int pwmVal(float speed){
+int pwmVal(float speed) {
   if (speed < 0.0)
     speed = 0;
 
@@ -150,22 +158,23 @@ ISR(PCINT1_vect) {
   rightTicks++;
 }
 
-ISR(TIMER0_COMPA_vect){
-  OCR0A = pwmVal(speed); //128
+ISR(TIMER0_COMPA_vect) { //left wheel, forward
+  OCR0A = speed*0.8;//pwmVal(speed); //128
 }
-ISR(TIMER0_COMPB_vect){
-  OCR0B = pwmVal(speed); //128
+ISR(TIMER0_COMPB_vect) { //backward
+  OCR0B = speed*0.810001000;//pwmVal(speed); //128
 }
-ISR(TIMER2_COMPA_vect){
-  OCR2A = pwmVal(speed); //128
+ISR(TIMER2_COMPA_vect) { //right wheel, forward
+  OCR2A = speed;//pwmVal(speed); //128
 }
-ISR(TIMER2_COMPB_vect){
-  OCR2B = pwmVal(speed); //128
+ISR(TIMER2_COMPB_vect) { //backward
+  OCR2B = speed;//pwmVal(speed); //128
 }
 
 void setup() {
   cli();
-  //Serial.begin(9600); //to remove
+  Serial.begin(9600); //to remove
+  
   DDRD |= 0b11111111;
   DDRB |= 0b11111111;
 
@@ -178,7 +187,7 @@ void setup() {
   //setup left wheel
   TCNT2 = 0;
   OCR2A = 128;
-  OCR2B = 128;//set default of 50% duty cycle
+  OCR2B = 128; //set default of 50% duty cycle
   TIMSK2 |= 0b110;// Activates OCR2A and OCR2B compares match interrupt.
 
   //setup wheel encoders and set pull up resistors
@@ -197,6 +206,7 @@ void setup() {
 
   //start wheel encoders
   PCICR = 0b00000011;//enable pin change interrupt 0 and 1
+
 }
 
 
@@ -241,31 +251,35 @@ void moveStop() {
 }
 
 void moveForward() {
-  leftTicks = rightTicks = 0;
-  rightForward();
+  leftTicks = 0;
+  rightTicks = 0;
   leftForward();
+  rightForward();
 }
 
 void moveBackward() { //I wrote this just in case we need it
-  leftTicks = rightTicks = 0;
+  leftTicks = 0;
+  rightTicks = 0;
   rightBackward();
   leftBackward();
 }
 
 void turnRight() {
-  leftTicks = rightTicks = 0;
+  leftTicks = 0;
+  rightTicks = 0;
   rightForward();
   leftBackward();
 }
 
 void turnLeft() {
-  leftTicks = rightTicks = 0;
+  leftTicks = 0;
+  rightTicks = 0;
   rightBackward();
   leftForward();
 }
 
-void handleCommand(TPacket *command){
-  switch (command->command){
+void handleCommand(TPacket *command) {
+  switch (command->command) {
     // For movement commands, param[0] = distance, param[1] = speed.
     case COMMAND_FORWARD:
       sendOK();
@@ -303,26 +317,26 @@ void handleCommand(TPacket *command){
   }
 }
 
-void waitForHello(){
+void waitForHello() {
   int exit = 0;
 
-  while (!exit){
+  while (!exit) {
     TPacket hello;
     TResult result;
 
-    do{
+    do {
       result = readPacket(&hello);
     } while (result == PACKET_INCOMPLETE);
 
-    if (result == PACKET_OK){
-      if (hello.packetType == PACKET_TYPE_HELLO){
+    if (result == PACKET_OK) {
+      if (hello.packetType == PACKET_TYPE_HELLO) {
         sendOK();
         exit = 1;
       }
       else
         sendBadResponse();
     }
-    else if (result == PACKET_BAD){
+    else if (result == PACKET_BAD) {
       sendBadPacket();
     }
     else if (result == PACKET_CHECKSUM_BAD)
@@ -330,8 +344,8 @@ void waitForHello(){
   } // !exit
 }
 
-void handlePacket(TPacket *packet){
-  switch (packet->packetType){
+void handlePacket(TPacket *packet) {
+  switch (packet->packetType) {
     case PACKET_TYPE_COMMAND:
       handleCommand(packet);
       break;
@@ -350,25 +364,21 @@ void handlePacket(TPacket *packet){
   }
 }
 
-void loop(){
+void loop() {
   // put your main code here, to run repeatedly:
   TPacket recvPacket; // This holds commands from the Pi
 
   TResult result = readPacket(&recvPacket);
-
   if (result == PACKET_OK)
     handlePacket(&recvPacket);
-  else if (result == PACKET_BAD){
+  else if (result == PACKET_BAD) {
     sendBadPacket();
   }
-  else if (result == PACKET_CHECKSUM_BAD){
+  else if (result == PACKET_CHECKSUM_BAD) {
     sendBadChecksum();
   }
 
-  if (dir == STOP){
+  if ((leftTicks > requiredTicks)||(rightTicks > requiredTicks)) {
     moveStop();
   }
-  else if (leftTicks > requiredTicks){
-    moveStop();
-  }   
 }
