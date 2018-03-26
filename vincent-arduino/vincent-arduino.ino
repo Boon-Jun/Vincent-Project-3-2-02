@@ -4,10 +4,6 @@
 #include "constants.h"
 #include <math.h>
 
-<<<<<<< HEAD:vincent-arduino.ino
-
-=======
->>>>>>> 6103242d2aff189cac3d1e3079a001bf84a4e8f2:vincent-arduino/vincent-arduino.ino
 typedef enum {
   STOP = 0,
   FORWARD = 1,
@@ -161,31 +157,17 @@ ISR(PCINT1_vect) {
   rightTicks++;
 }
 
-<<<<<<< HEAD:vincent-arduino.ino
 ISR(TIMER0_COMPA_vect) { //left wheel, forward
   OCR0A = speed*0.8;//pwmVal(speed); //128
 }
 ISR(TIMER0_COMPB_vect) { //backward
-  OCR0B = speed*0.810001000;//pwmVal(speed); //128
+  OCR0B = speed*0.8;//pwmVal(speed); //128
 }
 ISR(TIMER2_COMPA_vect) { //right wheel, forward
   OCR2A = speed;//pwmVal(speed); //128
 }
 ISR(TIMER2_COMPB_vect) { //backward
   OCR2B = speed;//pwmVal(speed); //128
-=======
-ISR(TIMER0_COMPA_vect) {
-  OCR0A = pwmVal(speed); //128
-}
-ISR(TIMER0_COMPB_vect) {
-  OCR0B = pwmVal(speed); //128
-}
-ISR(TIMER2_COMPA_vect) {
-  OCR2A = pwmVal(speed); //128
-}
-ISR(TIMER2_COMPB_vect) {
-  OCR2B = pwmVal(speed); //128
->>>>>>> 6103242d2aff189cac3d1e3079a001bf84a4e8f2:vincent-arduino/vincent-arduino.ino
 }
 
 void setup() {
@@ -395,11 +377,7 @@ void loop() {
     sendBadChecksum();
   }
 
-<<<<<<< HEAD:vincent-arduino.ino
   if ((leftTicks > requiredTicks)||(rightTicks > requiredTicks)) {
-=======
-  if (leftTicks > requiredTicks) {
->>>>>>> 6103242d2aff189cac3d1e3079a001bf84a4e8f2:vincent-arduino/vincent-arduino.ino
     moveStop();
   }
 }
