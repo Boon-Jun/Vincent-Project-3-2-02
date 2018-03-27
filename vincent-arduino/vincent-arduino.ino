@@ -272,8 +272,8 @@ void leftStop() {
 }
 
 void moveStop() {
-  rightStop();
   leftStop();
+  rightStop();
 }
 
 void moveForward() {
