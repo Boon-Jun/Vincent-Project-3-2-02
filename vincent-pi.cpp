@@ -3,6 +3,7 @@
 #include <semaphore.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <math.h>
 #include "packet.h"
 #include "serial.h"
 #include "serialize.h"
@@ -11,8 +12,31 @@
 #define PORT_NAME                       "/dev/ttyACM0"
 #define BAUD_RATE                       B9600
 
-int exitFlag=0;
+// Number of ticks per revolution from the
+// wheel encoder.
+#define COUNTS_PER_REV      384
+
+// Wheel circumference in cm.
+// We will use this to calculate ticks required
+#define WHEEL_CIRC          20.42
+
+//PI, for calculating turn circumference
+#define PI 3.141592654
+
+// Vincent's length and breadth in cm
+#define VINCENT_LENGTH 16.0
+#define VINCENT_BREADTH 12.5
+
+int exitFlag=0, distance, power;
 sem_t _xmitSema;
+
+// Vincent's diagonal. We compute and store this once
+// since it is expensive to compute and really doesn't change.
+float vincentDiagonal = sqrt((VINCENT_LENGTH * VINCENT_LENGTH) + (VINCENT_BREADTH * VINCENT_BREADTH));
+
+// Vincent's turning circumference, calculated once
+float vincentCirc = PI * vincentDiagonal;
+
 
 void handleError(TResult error)
 {
@@ -34,8 +58,8 @@ void handleError(TResult error)
 void handleStatus(TPacket *packet)
 {
         printf("\n ------- VINCENT STATUS REPORT ------- \n\n");
-        printf("Left Forward Ticks:\t\t%d\n", packet->params[0]);
-        printf("Right Forward Ticks:\t\t%d\n", packet->params[1]);
+        printf("Left Ticks:\t\t%d\n", packet->params[0]);
+        printf("Right Ticks:\t\t%d\n", packet->params[1]);
         printf("\n---------------------------------------\n\n");
 }
 
@@ -156,12 +180,23 @@ void flushInput()
         while((c = getchar()) != '\n' && c != EOF);
 }
 
-void getParams(TPacket *commandPacket)
-{
-        printf("Enter distance/angle in cm/degrees (e.g. 50) and power in %% (e.g. 75) separated by space.\n");
+void getInputs(){
+		printf("Enter distance/angle in cm/degrees (e.g. 50) and power in %% (e.g. 75) separated by space.\n");
         printf("E.g. 50 75 means go at 50 cm at 75%% power for forward/backward, or 50 degrees left or right turn at 75%%  power\n");
-        scanf("%d %d", &commandPacket->params[0], &commandPacket->params[1]);
+        scanf("%d %d", &distance, &power);
         flushInput();
+}
+
+void getParamsDist(TPacket *commandPacket)
+{
+        commandPacket->params[0] = (unsigned long)((float) distance/ WHEEL_CIRC * COUNTS_PER_REV);
+        commandPacket->params[1] = (float) power;
+}
+
+void getParamsAng(TPacket *commandPacket)
+{
+        commandPacket->params[0] = (unsigned long)((float) distance*(360.0 * WHEEL_CIRC)) / (vincentCirc * COUNTS_PER_REV);
+        commandPacket->params[1] = (float) power;
 }
 
 void sendCommand(char command)
@@ -174,28 +209,32 @@ void sendCommand(char command)
         {
                 case 'f':
                 case 'F':
-                        getParams(&commandPacket);
+						getInputs();
+                        getParamsDist(&commandPacket);
                         commandPacket.command = COMMAND_FORWARD;
                         sendPacket(&commandPacket);
                         break;
 
                 case 'b':
                 case 'B':
-                        getParams(&commandPacket);
+						getInputs();
+                        getParamsDist(&commandPacket);
                         commandPacket.command = COMMAND_REVERSE;
                         sendPacket(&commandPacket);
                         break;
 
                 case 'l':
                 case 'L':
-                        getParams(&commandPacket);
+						getInputs();
+                        getParamsAng(&commandPacket);
                         commandPacket.command = COMMAND_TURN_LEFT;
                         sendPacket(&commandPacket);
                         break;
 
                 case 'r':
                 case 'R':
-                        getParams(&commandPacket);
+						getInputs();
+                        getParamsAng(&commandPacket);
                         commandPacket.command = COMMAND_TURN_RIGHT;
                         sendPacket(&commandPacket);
                         break;
