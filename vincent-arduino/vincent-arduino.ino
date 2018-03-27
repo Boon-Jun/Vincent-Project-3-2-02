@@ -1,8 +1,8 @@
 #include <serialize.h>
-
 #include "packet.h"
 #include "constants.h"
 #include <math.h>
+
 
 typedef enum {
   STOP = 0,
@@ -12,9 +12,11 @@ typedef enum {
   RIGHT = 4
 } TDirection;
 
+
 volatile TDirection dir = STOP;
 volatile unsigned long leftTicks = 0, rightTicks = 0, requiredTicks = 0;
 float speed = 0.0;
+
 
 TResult readPacket(TPacket *packet) {
   // Reads in data from the serial port and
@@ -136,6 +138,93 @@ void writeSerial(const char *buffer, int len) {
   Serial.write(buffer, len);
 }
 
+void handleCommand(TPacket *command) {
+  switch (command->command) {
+    // For movement commands, param[0] = distance, param[1] = speed.
+    case COMMAND_FORWARD:
+      sendOK();
+      requiredTicks = (float) command->params[0];
+      speed = (float) command->params[1];
+      moveForward();
+      break;
+    case COMMAND_TURN_LEFT:
+      sendOK();
+      requiredTicks = (float) command->params[0];
+      speed = (float) command->params[1];
+      turnLeft();
+      break;
+    case COMMAND_TURN_RIGHT:
+      sendOK();
+      requiredTicks = (float) command->params[0];
+      speed = (float) command->params[1];
+      turnRight();
+      break;
+    case COMMAND_REVERSE:
+      sendOK();
+      requiredTicks = (float) command->params[0];
+      speed = (float) command->params[1];
+      moveBackward();
+      break;
+    case COMMAND_STOP:
+      sendOK();
+      moveStop();
+      break;
+    case COMMAND_GET_STATS:
+      sendStatus();
+      break;
+    default:
+      sendBadCommand();
+  }
+}
+
+void handlePacket(TPacket *packet) {
+  switch (packet->packetType) {
+    case PACKET_TYPE_COMMAND:
+      handleCommand(packet);
+      break;
+
+    case PACKET_TYPE_RESPONSE:
+      break;
+
+    case PACKET_TYPE_ERROR:
+      break;
+
+    case PACKET_TYPE_MESSAGE:
+      break;
+
+    case PACKET_TYPE_HELLO:
+      break;
+  }
+}
+
+void waitForHello() {
+  int exit = 0;
+
+  while (!exit) {
+    TPacket hello;
+    TResult result;
+
+    do {
+      result = readPacket(&hello);
+    } while (result == PACKET_INCOMPLETE);
+
+    if (result == PACKET_OK) {
+      if (hello.packetType == PACKET_TYPE_HELLO) {
+        sendOK();
+        exit = 1;
+      }
+      else
+        sendBadResponse();
+    }
+    else if (result == PACKET_BAD) {
+      sendBadPacket();
+    }
+    else if (result == PACKET_CHECKSUM_BAD)
+      sendBadChecksum();
+  } // !exit
+}
+
+
 //KIV: can be placed in the RPi
 int pwmVal(float speed) {
   if (speed < 0.0)
@@ -146,68 +235,6 @@ int pwmVal(float speed) {
 
   return (int) ((speed / 100.0) * 255.0);
 }
-
-//interrupts for wheel encoder
-ISR(PCINT0_vect) {
-  //Serial.println(leftTicks); //to remove
-  leftTicks++;
-}
-ISR(PCINT1_vect) {
-  //Serial.println(rightTicks); //to remove
-  rightTicks++;
-}
-
-ISR(TIMER0_COMPA_vect) { //left wheel, forward
-  OCR0A = speed*0.8;//pwmVal(speed); //128
-}
-ISR(TIMER0_COMPB_vect) { //backward
-  OCR0B = speed*0.8;//pwmVal(speed); //128
-}
-ISR(TIMER2_COMPA_vect) { //right wheel, forward
-  OCR2A = speed;//pwmVal(speed); //128
-}
-ISR(TIMER2_COMPB_vect) { //backward
-  OCR2B = speed;//pwmVal(speed); //128
-}
-
-void setup() {
-  cli();
-  Serial.begin(9600); //to remove
-  
-  DDRD |= 0b11111111;
-  DDRB |= 0b11111111;
-
-  //setup right wheel
-  TCNT0 = 0;
-  OCR0A = 128;
-  OCR0B = 128; //set default of 50% duty cycle
-  TIMSK0 |= 0b110;// Activates OCR0A and OCR0B compares match interrupt.
-
-  //setup left wheel
-  TCNT2 = 0;
-  OCR2A = 128;
-  OCR2B = 128; //set default of 50% duty cycle
-  TIMSK2 |= 0b110;// Activates OCR2A and OCR2B compares match interrupt.
-
-  //setup wheel encoders and set pull up resistors
-  DDRC &= 0b11111110;// set PC0 as input
-  DDRB &= 0b11011111;//set PB5 as input
-  PORTC |= 0b00000001;//drive PC0 to high
-  PORTB |= 0b00100000;//drive PB5 to high
-  PCMSK0 = 0b00100000;//set PCINT5 to activate pin change interrupt 0
-  PCMSK1 = 0b00000001;//set PCINT8 to activate pin change interrupt
-
-  sei();
-
-  //start PWM
-  TCCR0B = 0b00000011;
-  TCCR2B = 0b00000100;//setup prescalar64 to control period of PWM.
-
-  //start wheel encoders
-  PCICR = 0b00000011;//enable pin change interrupt 0 and 1
-
-}
-
 
 void rightForward() {
   TCCR0A = 0b10000001;//clear OC0A when upcounting and set when downcounting + set PWM
@@ -256,7 +283,7 @@ void moveForward() {
   rightForward();
 }
 
-void moveBackward() { //I wrote this just in case we need it
+void moveBackward() {
   leftTicks = 0;
   rightTicks = 0;
   rightBackward();
@@ -277,91 +304,69 @@ void turnLeft() {
   leftForward();
 }
 
-void handleCommand(TPacket *command) {
-  switch (command->command) {
-    // For movement commands, param[0] = distance, param[1] = speed.
-    case COMMAND_FORWARD:
-      sendOK();
-      requiredTicks = (float) command->params[0];
-      speed = (float) command->params[1];
-      moveForward();
-      break;
-    case COMMAND_TURN_LEFT:
-      sendOK();
-      requiredTicks = (float) command->params[0];
-      speed = (float) command->params[1];
-      turnLeft();
-      break;
-    case COMMAND_TURN_RIGHT:
-      sendOK();
-      requiredTicks = (float) command->params[0];
-      speed = (float) command->params[1];
-      turnRight();
-      break;
-    case COMMAND_REVERSE:
-      sendOK();
-      requiredTicks = (float) command->params[0];
-      speed = (float) command->params[1];
-      moveBackward();
-      break;
-    case COMMAND_STOP:
-      sendOK();
-      moveStop();
-      break;
-    case COMMAND_GET_STATS:
-      sendStatus();
-      break;
-    default:
-      sendBadCommand();
-  }
+
+//interrupts for wheel encoder
+ISR(PCINT0_vect) {
+  //Serial.println(leftTicks); //to remove
+  leftTicks++;
+}
+ISR(PCINT1_vect) {
+  //Serial.println(rightTicks); //to remove
+  rightTicks++;
 }
 
-void waitForHello() {
-  int exit = 0;
-
-  while (!exit) {
-    TPacket hello;
-    TResult result;
-
-    do {
-      result = readPacket(&hello);
-    } while (result == PACKET_INCOMPLETE);
-
-    if (result == PACKET_OK) {
-      if (hello.packetType == PACKET_TYPE_HELLO) {
-        sendOK();
-        exit = 1;
-      }
-      else
-        sendBadResponse();
-    }
-    else if (result == PACKET_BAD) {
-      sendBadPacket();
-    }
-    else if (result == PACKET_CHECKSUM_BAD)
-      sendBadChecksum();
-  } // !exit
+ISR(TIMER0_COMPA_vect) { //left wheel, forward
+  OCR0A = speed*0.8;//pwmVal(speed); //128
+}
+ISR(TIMER0_COMPB_vect) { //backward
+  OCR0B = speed*0.8;//pwmVal(speed); //128
+}
+ISR(TIMER2_COMPA_vect) { //right wheel, forward
+  OCR2A = speed;//pwmVal(speed); //128
+}
+ISR(TIMER2_COMPB_vect) { //backward
+  OCR2B = speed;//pwmVal(speed); //128
 }
 
-void handlePacket(TPacket *packet) {
-  switch (packet->packetType) {
-    case PACKET_TYPE_COMMAND:
-      handleCommand(packet);
-      break;
 
-    case PACKET_TYPE_RESPONSE:
-      break;
+void setup() {
+  cli();
+  setupSerial();
+  
+  DDRD |= 0b11111111;
+  DDRB |= 0b11111111;
 
-    case PACKET_TYPE_ERROR:
-      break;
+  //setup right wheel
+  TCNT0 = 0;
+  OCR0A = 128;
+  OCR0B = 128; //set default of 50% duty cycle
+  TIMSK0 |= 0b110;// Activates OCR0A and OCR0B compares match interrupt.
 
-    case PACKET_TYPE_MESSAGE:
-      break;
+  //setup left wheel
+  TCNT2 = 0;
+  OCR2A = 128;
+  OCR2B = 128; //set default of 50% duty cycle
+  TIMSK2 |= 0b110;// Activates OCR2A and OCR2B compares match interrupt.
 
-    case PACKET_TYPE_HELLO:
-      break;
-  }
+  //setup wheel encoders and set pull up resistors
+  DDRC &= 0b11111110;// set PC0 as input
+  DDRB &= 0b11011111;//set PB5 as input
+  PORTC |= 0b00000001;//drive PC0 to high
+  PORTB |= 0b00100000;//drive PB5 to high
+  PCMSK0 = 0b00100000;//set PCINT5 to activate pin change interrupt 0
+  PCMSK1 = 0b00000001;//set PCINT8 to activate pin change interrupt
+
+  sei();
+
+  //start PWM
+  TCCR0B = 0b00000011;
+  TCCR2B = 0b00000100;//setup prescalar64 to control period of PWM.
+
+  //start wheel encoders
+  PCICR = 0b00000011;//enable pin change interrupt 0 and 1
+
 }
+
 
 void loop() {
   // put your main code here, to run repeatedly:
