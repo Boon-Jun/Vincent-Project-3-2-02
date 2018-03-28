@@ -12,6 +12,9 @@ typedef enum {
   RIGHT = 4
 } TDirection;
 
+int directionStack[100000] = {0};
+long tickStack[100000] = {0};
+long size = 0;
 
 volatile TDirection dir = STOP;
 volatile unsigned long leftTicks = 0, rightTicks = 0, requiredTicks = 0;
@@ -29,9 +32,9 @@ TResult readPacket(TPacket *packet) {
   len = readSerial(buffer);
 
   if (len == 0)
-    return PACKET_INCOMPLETE;
+  return PACKET_INCOMPLETE;
   else
-    return deserialize(buffer, len, packet);
+  return deserialize(buffer, len, packet);
 
 }
 
@@ -127,7 +130,7 @@ int readSerial(char *buffer) {
   int count = 0;
 
   while (Serial.available())
-    buffer[count++] = Serial.read();
+  buffer[count++] = Serial.read();
 
   return count;
 }
@@ -140,60 +143,64 @@ void writeSerial(const char *buffer, int len) {
 
 void handleCommand(TPacket *command) {
   switch (command->command) {
-    // For movement commands, param[0] = distance, param[1] = speed.
-    case COMMAND_FORWARD:
-      sendOK();
-      requiredTicks = (float) command->params[0];
-      speed = (float) command->params[1];
-      moveForward();
-      break;
-    case COMMAND_TURN_LEFT:
-      sendOK();
-      requiredTicks = (float) command->params[0];
-      speed = (float) command->params[1];
-      turnLeft();
-      break;
-    case COMMAND_TURN_RIGHT:
-      sendOK();
-      requiredTicks = (float) command->params[0];
-      speed = (float) command->params[1];
-      turnRight();
-      break;
-    case COMMAND_REVERSE:
-      sendOK();
-      requiredTicks = (float) command->params[0];
-      speed = (float) command->params[1];
-      moveBackward();
-      break;
-    case COMMAND_STOP:
-      sendOK();
-      moveStop();
-      break;
-    case COMMAND_GET_STATS:
-      sendStatus();
-      break;
-    default:
-      sendBadCommand();
+  // For movement commands, param[0] = distance, param[1] = speed.
+  case COMMAND_FORWARD:
+    sendOK();
+    requiredTicks = (float) command->params[0];
+    speed = (float) command->params[1];
+    moveForward();
+  directionStack[size] = 1;
+break;
+case COMMAND_TURN_LEFT:
+    sendOK();
+    requiredTicks = (float) command->params[0];
+    speed = (float) command->params[1];
+    turnLeft();
+            directionStack[size] = 3;
+    break;
+  case COMMAND_TURN_RIGHT:
+    sendOK();
+    requiredTicks = (float) command->params[0];
+    speed = (float) command->params[1];
+    turnRight();
+  directionStack[size] = 4;
+    break;
+  case COMMAND_REVERSE:
+    sendOK();
+    requiredTicks = (float) command->params[0];
+    speed = (float) command->params[1];
+    moveBackward();
+  directionStack[size] = 2;
+    break;
+  case COMMAND_STOP:
+    sendOK();
+    moveStop();
+    break;
+  case COMMAND_GET_STATS:
+    sendStatus();
+    break;
+  default:
+    sendBadCommand();
   }
 }
 
 void handlePacket(TPacket *packet) {
   switch (packet->packetType) {
-    case PACKET_TYPE_COMMAND:
-      handleCommand(packet);
-      break;
+  case PACKET_TYPE_COMMAND:
+    handleCommand(packet);
+    break;
 
-    case PACKET_TYPE_RESPONSE:
-      break;
+  case PACKET_TYPE_RESPONSE:
+    break;
 
-    case PACKET_TYPE_ERROR:
-      break;
+  case PACKET_TYPE_ERROR:
+    break;
 
-    case PACKET_TYPE_MESSAGE:
-      break;
+  case PACKET_TYPE_MESSAGE:
+    break;
 
-    case PACKET_TYPE_HELLO:
-      break;
+  case PACKET_TYPE_HELLO:
+    break;
   }
 }
 
@@ -201,26 +208,26 @@ void waitForHello() {
   int exit = 0;
 
   while (!exit) {
-    TPacket hello;
-    TResult result;
+  TPacket hello;
+  TResult result;
 
-    do {
-      result = readPacket(&hello);
-    } while (result == PACKET_INCOMPLETE);
+  do {
+    result = readPacket(&hello);
+  } while (result == PACKET_INCOMPLETE);
 
-    if (result == PACKET_OK) {
-      if (hello.packetType == PACKET_TYPE_HELLO) {
-        sendOK();
-        exit = 1;
-      }
-      else
-        sendBadResponse();
+  if (result == PACKET_OK) {
+    if (hello.packetType == PACKET_TYPE_HELLO) {
+      sendOK();
+      exit = 1;
     }
-    else if (result == PACKET_BAD) {
-      sendBadPacket();
-    }
-    else if (result == PACKET_CHECKSUM_BAD)
-      sendBadChecksum();
+    else
+      sendBadResponse();
+  }
+  else if (result == PACKET_BAD) {
+    sendBadPacket();
+  }
+  else if (result == PACKET_CHECKSUM_BAD)
+    sendBadChecksum();
   } // !exit
 }
 
@@ -228,10 +235,10 @@ void waitForHello() {
 //KIV: can be placed in the RPi
 int pwmVal(float speed) {
   if (speed < 0.0)
-    speed = 0;
+  speed = 0;
 
   if (speed > 100.0)
-    speed = 100.0;
+  speed = 100.0;
 
   return (int) ((speed / 100.0) * 255.0);
 }
@@ -274,6 +281,8 @@ void leftStop() {
 void moveStop() {
   leftStop();
   rightStop();
+  tickStack[size] = (rightTick > leftTick)?rightTick:leftTick;
+  size++; 
 }
 
 void moveForward() {
@@ -316,10 +325,10 @@ ISR(PCINT1_vect) {
 }
 
 ISR(TIMER0_COMPA_vect) { //left wheel, forward
-  OCR0A = speed*0.8;//pwmVal(speed); //128
+  OCR0A = speed * 0.8; //pwmVal(speed); //128
 }
 ISR(TIMER0_COMPB_vect) { //backward
-  OCR0B = speed*0.8;//pwmVal(speed); //128
+  OCR0B = speed * 0.8; //pwmVal(speed); //128
 }
 ISR(TIMER2_COMPA_vect) { //right wheel, forward
   OCR2A = speed;//pwmVal(speed); //128
@@ -332,7 +341,7 @@ ISR(TIMER2_COMPB_vect) { //backward
 void setup() {
   cli();
   setupSerial();
-  
+
   DDRD |= 0b11111111;
   DDRB |= 0b11111111;
 
@@ -350,11 +359,11 @@ void setup() {
 
   //setup wheel encoders and set pull up resistors
   DDRC &= 0b11111110;// set PC0 as input
-  DDRB &= 0b11011111;//set PB5 as input
+  DDRB &= 0b11111101;//set PB1 as input
   PORTC |= 0b00000001;//drive PC0 to high
-  PORTB |= 0b00100000;//drive PB5 to high
-  PCMSK0 = 0b00100000;//set PCINT5 to activate pin change interrupt 0
-  PCMSK1 = 0b00000001;//set PCINT8 to activate pin change interrupt
+  PORTB |= 0b00000010;//drive PB1 to high
+  PCMSK1 = 0b00000001;//set PCINT8 to activate pin change interrupt 1
+  PCMSK0 = 0b00000010;//set PCINT1 to activate pin change interrupt 2
 
   sei();
 
@@ -367,22 +376,22 @@ void setup() {
 
 }
 
-
 void loop() {
   // put your main code here, to run repeatedly:
   TPacket recvPacket; // This holds commands from the Pi
 
   TResult result = readPacket(&recvPacket);
   if (result == PACKET_OK)
-    handlePacket(&recvPacket);
+  handlePacket(&recvPacket);
   else if (result == PACKET_BAD) {
-    sendBadPacket();
+  sendBadPacket();
   }
   else if (result == PACKET_CHECKSUM_BAD) {
-    sendBadChecksum();
+  sendBadChecksum();
   }
 
-  if ((leftTicks > requiredTicks)||(rightTicks > requiredTicks)) {
-    moveStop();
+  if ((leftTicks > requiredTicks) || (rightTicks > requiredTicks)) {
+  moveStop();
   }
 }
+
