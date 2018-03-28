@@ -12,8 +12,8 @@ typedef enum {
   RIGHT = 4
 } TDirection;
 
-int directionStack[100000] = {0};
-long tickStack[100000] = {0};
+int directionStack[250] = {0};
+long tickStack[250] = {0};
 long size = 0;
 
 volatile TDirection dir = STOP;
