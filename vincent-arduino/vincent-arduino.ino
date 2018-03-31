@@ -2,7 +2,7 @@
 #include "packet.h"
 #include "constants.h"
 #include <math.h>
-
+#define OCR1VAL 31249//value for OCR1BH/L register combined
 
 typedef enum {
   STOP = 0,
@@ -19,6 +19,7 @@ long size = 0;
 volatile TDirection dir = STOP;
 volatile unsigned long leftTicks = 0, rightTicks = 0, requiredTicks = 0;
 float speed = 0.0;
+float speedright = 128, speedleft = 128;
 
 
 TResult readPacket(TPacket *packet) {
@@ -325,16 +326,27 @@ ISR(PCINT1_vect) {
 }
 
 ISR(TIMER0_COMPA_vect) { //left wheel, forward
-  OCR0A = speed * 0.8; //pwmVal(speed); //128
+  OCR0A = speedleft; //pwmVal(speed); //128
 }
 ISR(TIMER0_COMPB_vect) { //backward
-  OCR0B = speed * 0.8; //pwmVal(speed); //128
+  OCR0B = speedleft; //pwmVal(speed); //128
 }
 ISR(TIMER2_COMPA_vect) { //right wheel, forward
-  OCR2A = speed;//pwmVal(speed); //128
+  OCR2A = speedright;//pwmVal(speed); //128
 }
 ISR(TIMER2_COMPB_vect) { //backward
-  OCR2B = speed;//pwmVal(speed); //128
+  OCR2B = speedright;//pwmVal(speed); //128
+}
+ISR(TIMER1_COMPB_vect) { //code not included in report
+  OCCR1BL = OCR1VAL;     //attempt to adjust speed every 0.5secs
+  OCCR1BH = OCR1VAL >> 8;
+  if(rightTicks > leftTicks){//if rightwheel faster than left, 
+    speedright = speedright - 1;
+    speedleft = speedleft + 1;
+  }else{
+    speedright = speedright + 1;
+    speedleft = speedleft - 1;
+  }
 }
 
 
@@ -356,7 +368,13 @@ void setup() {
   OCR2A = 128;
   OCR2B = 128; //set default of 50% duty cycle
   TIMSK2 |= 0b110;// Activates OCR2A and OCR2B compares match interrupt.
-
+  //setup timers
+  TCNT1L = 0;
+  TCNT1H = 0;
+  TCCR1A = 0b00000000;
+  TCCR1B = 0b00001100;
+  TIMSK1 |= 0b100;
+  TIMSK1 &= 0b100
   //setup wheel encoders and set pull up resistors
   DDRC &= 0b11111110;// set PC0 as input
   DDRB &= 0b11111101;//set PB1 as input
@@ -364,7 +382,7 @@ void setup() {
   PORTB |= 0b00000010;//drive PB1 to high
   PCMSK1 = 0b00000001;//set PCINT8 to activate pin change interrupt 1
   PCMSK0 = 0b00000010;//set PCINT1 to activate pin change interrupt 2
-
+  
   sei();
 
   //start PWM
