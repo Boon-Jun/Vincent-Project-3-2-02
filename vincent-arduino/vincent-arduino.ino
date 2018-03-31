@@ -326,20 +326,20 @@ ISR(PCINT1_vect) {
 }
 
 ISR(TIMER0_COMPA_vect) { //left wheel, forward
-  OCR0A = speedleft; //pwmVal(speed); //128
+  OCR0A = speedright; //pwmVal(speed); //128
 }
 ISR(TIMER0_COMPB_vect) { //backward
-  OCR0B = speedleft; //pwmVal(speed); //128
+  OCR0B = speedright; //pwmVal(speed); //128
 }
 ISR(TIMER2_COMPA_vect) { //right wheel, forward
-  OCR2A = speedright;//pwmVal(speed); //128
+  OCR2A = speedleft;//pwmVal(speed); //128
 }
 ISR(TIMER2_COMPB_vect) { //backward
-  OCR2B = speedright;//pwmVal(speed); //128
+  OCR2B = speedleft;//pwmVal(speed); //128
 }
 ISR(TIMER1_COMPB_vect) { //code not included in report
-  OCCR1BL = OCR1VAL;     //attempt to adjust speed every 0.5secs
-  OCCR1BH = OCR1VAL >> 8;
+  OCR1BL = OCR1VAL;     //attempt to adjust speed every 0.5secs
+  OCR1BH = OCR1VAL >> 8;
   if(rightTicks > leftTicks){//if rightwheel faster than left, 
     speedright = speedright - 1;
     speedleft = speedleft + 1;
