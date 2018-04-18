@@ -1,0 +1,9 @@
+SG
+Singapore
+Singapore
+EPP2
+CEG
+192.168.1.31
+EMAIL
+00000000
+03-02-02
