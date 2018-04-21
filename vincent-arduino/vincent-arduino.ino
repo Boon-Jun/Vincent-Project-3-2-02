@@ -428,16 +428,16 @@ ISR(PCINT1_vect) {
 }
 
 ISR(TIMER0_COMPA_vect) {
-  OCR0A = PWM_val_left; //128
+  OCR0A = PWM_val_left; 
 }
 ISR(TIMER0_COMPB_vect) {
-  OCR0B = PWM_val_left; //128
+  OCR0B = PWM_val_left; 
 }
 ISR(TIMER2_COMPA_vect) {
-  OCR2A = PWM_val_right; //128
+  OCR2A = PWM_val_right; 
 }
 ISR(TIMER2_COMPB_vect) {
-  OCR2B = PWM_val_right; //128
+  OCR2B = PWM_val_right; 
 }
 
 //IR SENSOR
