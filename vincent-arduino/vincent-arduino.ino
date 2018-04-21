@@ -357,7 +357,6 @@ void moveStop() {
   dir = STOP;
   PWM_val_left = computePID(PWM_val_left, rightSpeed, leftSpeed, 1);
 
-  //Requires reevaluation
   if (!irActivated) {
     cli();
     EICRA |= 0b00000011;
